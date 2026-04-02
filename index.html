@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cookeville Weather</title>
+
+<link href="https://bootswatch.com/5/quartz/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+</head>
+
+<body>
+
+<div class="container py-4">
+
+    <!--Current weather
+    Icons taken from getbootstrap icon documentation-->
+
+    <div class="card bg-secondary text-center mb-4">
+        <div class="card-body">
+
+            <h2 class="fw-bold">
+                <i class="bi bi-geo-alt text-danger"></i> Cookeville, TN
+            </h2>
+
+            <!--Temperature-->
+            <h1 class="display-1 fw-bold">
+                <i class="bi bi-thermometer-half text-warning"></i>
+                <span id="txtTemp">--</span>°
+            </h1>
+
+            <!--Sky conditions-->
+            <div class="mb-3">
+                <i id="iconCondition" class="bi bi-cloud-sun display-3"></i>
+                <h5 id="txtCondition">Loading...</h5>
+            </div>
+
+            <!--Humidity and wind speed-->
+            <div class="d-flex justify-content-center gap-4">
+                <div>
+                    <i class="bi bi-water text-primary"></i><br>
+                    <span id="txtHumidity">--</span>% Humidity
+                </div>
+                <div>
+                    <i class="bi bi-wind"></i><br>
+                    <span id="txtWind">--</span> mph
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!--Hourly weather table (weather for next 12 hours)-->
+    <div class="card bg-secondary mb-4">
+        <div class="card-body">
+            <h4><i class="bi bi-clock"></i> Hourly Forecast</h4>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Temp</th>
+                            <th>Rain %</th>
+                            <th>Wind</th>
+                        </tr>
+                    </thead>
+                    <tbody id="hourlyTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!--Weekly weather table (weather for next 7 days)-->
+    <div class="card bg-secondary">
+        <div class="card-body">
+            <h4><i class="bi bi-calendar-week"></i> Weekly Forecast</h4>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Max</th>
+                            <th>Min</th>
+                            <th>Rain</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dailyTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <footer class="text-center mt-3">
+        <small class="text-muted">
+            Data courtesy of <a href="https://open-meteo.com/" target="_blank" class="text-decoration-none text-light">Open-Meteo</a>
+        </small>
+    </footer>
+
+</div>
+
+<script>
+const url = 'https://api.open-meteo.com/v1/forecast?latitude=36.16&longitude=-85.5&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max&hourly=temperature_2m,relative_humidity_2m,weather_code,apparent_temperature,precipitation_probability,wind_speed_10m&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,wind_speed_10m,wind_direction_10m,precipitation,weather_code&timezone=America%2FChicago&wind_speed_unit=mph&temperature_unit=fahrenheit&precipitation_unit=inch';
+
+// Javascript datetime function to 12-hour AM/PM format
+function formatAMPM(dateString) {
+    let date = new Date(dateString);
+    let hours = date.getHours();
+    let ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    return hours + ':00 ' + ampm;
+}
+
+fetch(url)
+.then(response => response.json())
+.then(data => {
+
+    let c = data.current;
+
+    // Current weather data
+    document.getElementById('txtTemp').innerText = Math.round(c.temperature_2m);
+    document.getElementById('txtHumidity').innerText = c.relative_humidity_2m;
+    document.getElementById('txtWind').innerText = c.wind_speed_10m;
+
+    // Weather condition/icon logic 
+    let code = c.weather_code;
+    let desc = "Overcast";
+    let icon = "bi-clouds-fill";
+
+    //WMO weather codes (0=clear sky | 1,2,3=cloudy)
+    if (code === 0) {
+        desc = "Clear Sky";
+        icon = "bi-sun-fill";
+    } else if (code <= 3) {
+        desc = "Partly Cloudy";
+        icon = "bi-cloud-sun-fill";
+    } else if (code <= 48) {
+        desc = "Foggy";
+        icon = "bi-cloud-fog2-fill";
+    } else if (code <= 67) {
+        desc = "Rainy";
+        icon = "bi-cloud-rain-fill";
+    }
+    //Changes icon/weather conditions based on previous logic ^
+    document.getElementById('txtCondition').innerText = desc;
+    document.getElementById('iconCondition').className = "bi " + icon + " display-3";
+
+    //Hourly table
+    let hourlyTableBody = document.getElementById('hourlyTable');
+    hourlyTableBody.innerHTML = "";
+
+    //Converts hour to military time (24 hour clock). Ex: 2:00pm returns 14
+    const currentHour = new Date().getHours(); 
+
+    //Current (Now) hour logic
+    for (let i = 0; i < 13; i++) {
+        let index = currentHour + i;
+        
+        //Prevents time from going over 12 hours from current hour
+        if (index >= data.hourly.time.length) break;
+
+        let timeLabel = (i === 0) ? "Now" : formatAMPM(data.hourly.time[index]);
+        let temp = Math.round(data.hourly.temperature_2m[index]);
+        let rain = data.hourly.precipitation_probability[index];
+        let wind = data.hourly.wind_speed_10m[index];
+
+        hourlyTableBody.innerHTML += `
+            <tr>
+                <td>${timeLabel}</td>
+                <td>${temp}°</td>
+                <td>${rain}%</td>
+                <td>${wind} mph</td>
+            </tr>
+        `;
+    }
+
+    // Daily table
+    let dailyTableBody = document.getElementById('dailyTable');
+    dailyTableBody.innerHTML = ""; // Clear existing
+    data.daily.time.forEach((date, i) => {
+        dailyTableBody.innerHTML += `
+            <tr>
+                <td>${date}</td>
+                <td>${data.daily.temperature_2m_max[i]}°</td>
+                <td>${data.daily.temperature_2m_min[i]}°</td>
+                <td>${data.daily.precipitation_sum[i]} in</td>
+            </tr>
+        `;
+    });
+
+})
+.catch(error => {
+    alert("Failed to load weather data");
+    console.error(error);
+});
+</script>
+
+<!--Google Gemini used to understand how to:
+-Read and parse open meteo code
+-Use bootstrap icons
+-Use JS datetime and AMPM functions
+-
+
+-->
